@@ -1,0 +1,267 @@
+---
+title: "table_2"
+format: pdf
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| message: false
+#| echo: false
+
+# Loading necessary packages for the script
+library(tidyverse)
+library(repeatData)
+library(gt)
+library(lme4)
+library(emmeans)
+library(pbkrtest)
+library(gtsummary)
+library(patchwork)
+library(reporter)
+library(jtools)
+
+
+
+
+```
+
+```{r}
+#| message: false
+#| echo: false
+#| warning: false
+
+
+# summarising and creating percentage change scores from pre- to post
+change_sum <- hb.data %>%
+  select(id:hbmass.kg) %>%
+  pivot_longer(names_to = "variable", 
+               values_to = "value", 
+               cols = weight:hbmass.kg) %>%
+  pivot_wider(names_from = timepoint, 
+              values_from = value) %>%
+  mutate(change = (post - pre)/pre * 100, 
+         timepoint = "change") %>%
+  
+  summarise(.by = c(timepoint, variable), 
+            m = mean(change, na.rm = TRUE), 
+            s = sd(change, na.rm = TRUE))
+
+
+
+
+
+
+# Including only participants with both pre and post tests
+filtered_hb.data <- hb.data %>%
+  group_by(id) %>%
+  filter(n_distinct(timepoint) == 2) %>%
+  ungroup()
+
+# Making sure the variable is g/dl
+filtered_hb.data$hb.c <- filtered_hb.data$hb.c / 10
+
+
+filtered_hb.data %>% 
+  group_by(timepoint) %>%
+  pivot_longer(names_to = "variable",
+              values_to = "value",
+              cols = hbmass:hbmass.kg) %>% 
+  
+
+  
+  
+  group_by(timepoint, variable) %>%
+
+  summarise(m = mean(value),
+            s = sd(value)) %>% # summarising mean and SD scores from pre and post tests
+  
+  bind_rows(change_sum) %>% # binding rows with both tibbles
+  
+  pivot_wider(names_from = timepoint, 
+              values_from = c(m, s)) %>%
+  filter(variable !="weight") %>%
+  
+  gt() %>% # generating table and formatting it to look nice. 
+
+  fmt_number(columns = c(m_post:s_pre), 
+             rows = variable %in% c("bv", "hbmass", "pv","rbcv"),
+             decimals = 0,
+             use_seps = FALSE) %>%
+  fmt_number(columns = c(m_post:s_pre),
+             rows = variable %in% c("hb.c", "hbmass.kg", "hct"),
+             decimals = 1,
+             use_seps = FALSE) %>%
+  fmt_number(columns = c(m_change, s_change),
+             rows = everything(),
+             decimals = 1) %>% 
+  cols_merge(columns = c("m_pre", "s_pre"), 
+             pattern = "<<{1}>> <<\\verb|±| {2}>>") %>%
+    cols_merge(columns = c("m_post", "s_post"), 
+             pattern = "<<{1}>> <<\\verb|±| {2}>>") %>%
+      cols_merge(columns = c("m_change", "s_change"), 
+             pattern = "<<{1}>> <<\\verb|±| {2}>>") %>%
+  cols_move(columns = m_post,
+            after = m_pre) %>%
+  cols_label(m_pre = "Pre",
+             m_post = "Post",
+             m_change = "% Change",
+             variable = " ") %>%
+  text_case_match("bv" ~ "BV (mL)",
+                  "hb.c" ~ "\\verb|[Hb]| (g/dL)",
+                  "hbmass" ~ "Hb\\textsubscript{mass} (g)",
+                  "hbmass.kg" ~ "Hb\\textsubscript{mass}/BM (g/kg)",
+                  "hct" ~ "Haematocrit",
+                  "pv" ~ "PV (mL)",
+                  "rbcv" ~ "RBCV (mL)") %>% 
+   tab_footnote(footnote = "N = 51, BV blood volume, [Hb] haemoglobin conentration, Hbmass haemoglobin mass, Haematocrit (%) PV plasma volume, RBCV red blood cell volume. * Signifcant change example" )
+
+
+
+  
+ 
+
+
+```
+
+
+```{r}
+#| message: false
+#| echo: false
+#| warning: false
+
+# This R-script was used to make a Hb change table and checking for statistical significant difference between pre and post for haematological measures
+
+
+
+# Including only participants with both pre and post tests
+filtered_dataset <- hb.data %>%
+  group_by(id) %>%
+  filter(n_distinct(timepoint) == 2) %>%
+  ungroup()
+
+# Pivot to wide format and calculate changes in percentages
+wide_data <- filtered_dataset %>%
+  pivot_wider(
+    id_cols = id,
+    names_from = timepoint,
+    values_from = c(weight, hbmass, rbcv, pv, bv, hct, hbmass.kg, hb.c)) %>%
+mutate(
+    weight_change = (weight_post - weight_pre)/weight_pre * 100,
+    hbmass_change = (hbmass_post - hbmass_pre)/hbmass_pre * 100,
+    rbcv_change = (rbcv_post - rbcv_pre)/rbcv_pre * 100,
+    pv_change = (pv_post - pv_pre)/pv_pre * 100,
+    bv_change = (bv_post - bv_pre)/bv_pre *100,
+    hbmass.kg_change = (hbmass.kg_post - hbmass.kg_pre)/hbmass.kg_pre * 100,
+    hct_change = (hct_post - hct_pre)/hct_pre *100,
+    hb.c_change = (hb.c_post - hb.c_pre)/hb.c_pre *100)
+
+
+
+
+# Calculate mean and SD for pre, post, and change variables
+summary_stats <- wide_data %>%
+  summarize(across(contains("_pre") | contains("_post") | contains("_change"),
+                   list(mean = ~mean(.x, na.rm = TRUE),
+                        sd = ~sd(.x, na.rm = TRUE))))
+
+
+
+# Summarize the data and format as mean (SD)
+summary_stats <- wide_data %>%
+  summarise(
+    across(
+      .cols = c(weight_pre, weight_post, weight_change, hbmass_pre, hbmass_post, hbmass_change, rbcv_pre, rbcv_post, rbcv_change, pv_pre, pv_post, pv_change, bv_pre, bv_post, bv_change, `hbmass.kg_pre`, `hbmass.kg_post`, hbmass.kg_change, hb.c_pre, hb.c_post, hb.c_change),
+      .fns = ~sprintf("%.2f (%.2f)", mean(.x, na.rm = TRUE), sd(.x, na.rm = TRUE)),
+      .names = "{.col}_mean_sd"))
+
+
+# Long summary format
+long_summary <- summary_stats %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "measure",
+    values_to = "value")
+
+# Now, separate the 'measure' into 'variable' and 'timepoint' parts
+long_summary <- long_summary %>%
+  separate(measure, into = c("variable", "timepoint"), sep = "_", extra = "merge") %>%
+  unite("timepoint", timepoint, sep = "_")  # Reunite the timepoint parts if separated into multiple columns
+
+# Pivot wider to create separate columns for pre, post, and change
+wide_summary <- long_summary %>%
+  pivot_wider(
+    names_from = "timepoint",
+    values_from = "value")
+
+# Rename columns for clarity
+wide_summary <- wide_summary %>%
+  rename(
+    "Variable" = variable,
+    "Pre" = pre_mean_sd,
+    "Post" = post_mean_sd,
+    "Percentage" = change_mean_sd)
+
+
+
+# Statistcal analyses
+
+
+
+# Perform a paired t-test for each of the variables
+
+t_test_weight <- t.test(wide_data$weight_post, wide_data$weight_pre, paired = TRUE)
+t_test_hbmass <- t.test(wide_data$hbmass_post, wide_data$hbmass_pre, paired = TRUE)
+t_test_rbcv <- t.test(wide_data$rbcv_post, wide_data$rbcv_pre, paired = TRUE)
+t_test_pv <- t.test(wide_data$pv_post, wide_data$pv_pre, paired = TRUE)
+t_test_bv <- t.test(wide_data$bv_post, wide_data$bv_pre, paired = TRUE)
+t_test_hbmass.kg <- t.test(wide_data$hbmass.kg_post, wide_data$hbmass.kg_pre, paired = TRUE)
+t_test_hct <- t.test(wide_data$hct_post, wide_data$hct_pre, paired = TRUE)
+t_test_hb.c <- t.test(wide_data$hb.c_post, wide_data$hb.c_pre, paired = TRUE)
+
+print(t_test_weight)
+print(t_test_hbmass.kg)
+print(t_test_hct)
+print(t_test_bv)
+print(t_test_rbcv)
+print(t_test_pv)
+print(t_test_weight)
+print(t_test_hb.c)
+
+
+# Absolute changes mean (sd)
+wide_data_change <- filtered_dataset %>%
+  pivot_wider(
+    id_cols = id,
+    names_from = timepoint,
+    values_from = c(weight, hbmass, rbcv, pv, bv, hbmass.kg, hb.c)) %>%
+  mutate(
+    weight_change = (weight_post - weight_pre)/weight_pre *100,
+    hbmass_change = (hbmass_post - hbmass_pre),
+    rbcv_change = (rbcv_post - rbcv_pre),
+    pv_change = (pv_post - pv_pre),
+    bv_change = (bv_post - bv_pre),
+    hbmass.kg_change = (hbmass.kg_post - hbmass.kg_pre),
+    hb.c_change = (hb.c_post - hb.c_pre))
+
+# generating a table to see absolute and mean changes from pre to post
+summary_stats_change <- wide_data_change %>%
+  summarise(
+    across(
+      .cols = c(weight_pre, weight_post, weight_change, hbmass_pre, hbmass_post, hbmass_change, rbcv_pre, rbcv_post, rbcv_change, pv_pre, pv_post, pv_change, bv_pre, bv_post, bv_change, `hbmass.kg_pre`, `hbmass.kg_post`, hbmass.kg_change, hb.c_pre, hb.c_post, hb.c_change),
+      .fns = ~sprintf("%.2f (%.2f)", mean(.x, na.rm = TRUE), sd(.x, na.rm = TRUE)),
+      .names = "{.col}_mean_sd")) %>%
+  select(contains("_change"))
+
+# going long format to make it easier to read in pdf format
+long_summary <- summary_stats_change %>%
+  pivot_longer(cols = everything(), 
+               names_to = "Variable", 
+               values_to = "Value")
+# printing the table
+long_summary %>% 
+  gt() 
+
+
+```
+

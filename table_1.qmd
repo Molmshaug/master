@@ -1,0 +1,81 @@
+---
+title: "table_1"
+format: html
+---
+
+```{r}
+#| message: false
+#| echo: false
+library(tidyverse)
+library(repeatData)
+library(gt)
+library(lme4)
+library(emmeans)
+library(pbkrtest)
+library(gtsummary)
+library(patchwork)
+library(reporter)
+library(jtools)
+
+
+
+
+```
+
+```{r}
+#| message: false
+#| echo: false
+#| warning: false
+
+## Creating Table 1. 
+
+
+final.data %>%
+  select(id, timepoint, period, sex, test, height, weight, age, vo2) %>% # Selecting relevant data
+  filter(!id %in% c(35, 37, 56)) %>% # filtering out participants who withdrew from the study
+
+  filter(timepoint == "pre" & test == "max") %>% # filtering out correct timepoints and test
+
+  mutate(vo2.kg = vo2/weight) %>% # Creating new variable to get vo2/kg
+
+  group_by(sex) %>% # grouping data by sex
+  mutate(n =n()) %>% # creating row with number of participants (male and female)
+
+  pivot_longer(names_to = "variable",
+               values_to = "value",
+               cols = height:n) %>%
+  select(-period) %>% # removing period column, not needed
+
+  group_by(sex, variable) %>%
+  summarise(m = mean(value),
+            s = sd(value)) %>% # summarising mean and SD
+  mutate(s = ifelse(variable == "n", NA, s)) %>%  # Set sd to NA for "n" variable
+  pivot_wider(names_from = sex,
+              values_from = c(m, s)) %>%
+  arrange(factor(variable, levels = c("n", "age", "height", "weight", "vo2", "vo2.kg"))) %>%
+
+  gt() %>% # generating table and formatting table to look nice
+  fmt_number(columns = c(m_f:s_m),
+             rows = variable %in% c("height", "vo2", "n"),
+             decimals = 0,
+             use_seps = FALSE) %>%
+  fmt_number(columns = c(m_f:s_m),
+             rows = variable %in% c("age", "weight", "vo2.kg"),
+             decimals = 1,
+             use_seps = FALSE) %>%
+  cols_merge(columns = c("m_f", "s_f"),
+             pattern = "<<{1}>> <<± {2}>>") %>%
+  cols_merge(columns = c("m_m", "s_m"),
+             pattern = "<<{1}>> <<± {2}>>") %>%
+  cols_label(m_f = "Female",
+             m_m = "Male",
+             variable = " ") %>%
+  text_case_match("n" ~ "n",
+                  "age" ~ "Age (years)",
+                  "height" ~ "Height (cm)",
+                  "weight" ~ "Body mass (kg)",
+                  "vo2" ~ "VO\\textsubscript{2max} (mL\\verb|·|min\\textsuperscript{-1})",
+                  "vo2.kg" ~ "VO\\textsubscript{2max} (mL\\verb|·|min\\textsuperscript{-1}\\verb|·|kg\\textsuperscript{-1})")
+```
+
+

@@ -1,0 +1,359 @@
+---
+title: "figure_5"
+format: pdf
+editor_options: 
+  chunk_output_type: console
+---
+
+
+
+```{r}
+#| message: false
+#| echo: false
+library(tidyverse)
+library(repeatData)
+library(gt)
+library(lme4)
+library(emmeans)
+library(pbkrtest)
+library(gtsummary)
+library(patchwork)
+library(reporter)
+library(jtools)
+
+```
+
+```{r}
+#| message: false
+#| echo: false
+#| warning: false
+ 
+ 
+
+
+
+# Pre - post - phle graphs
+
+# VO2 max
+
+# Find the highest VO2 value at timepoints 2 or 3 for each ID and label it as "pre"
+vo2_pre <- vo2max.data %>%
+  filter(timepoint %in% c(2, 3)) %>%
+  group_by(id) %>%
+  summarize(VO2 = max(vo2, na.rm = TRUE)) %>%
+  mutate(Timepoint = "pre") %>%
+  ungroup()
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+vo2_postphle <- vo2max.data %>%
+  filter(timepoint %in% c(7, 8)) %>%
+  mutate(Timepoint = case_when(
+    timepoint == 7 ~ "post",
+    timepoint == 8 ~ "phle"
+  )) %>%
+  select(id, VO2 = vo2, Timepoint)
+
+# Combine the pre, post, and phle datasets into a final dataset for analysis
+final_dataset <- bind_rows(vo2_pre, vo2_postphle) %>% 
+  # remove participants that did not remove blood or tested at timepoint 8
+  filter(!id %in% c(18, 19, 22, 23, 29, 35, 37, 38, 50, 51, 52, 54, 56, 57, 58))
+
+
+  # Specify the order of Timepoints
+  final_dataset$Timepoint <- factor(final_dataset$Timepoint, levels = c("pre", "post", "phle"))
+# Create the plot
+v <- ggplot(final_dataset, aes(x = Timepoint, y = VO2, fill = Timepoint)) +
+  # Bar plot for averages
+  stat_summary(fun = "mean", geom = "col", fill =  c("grey", "grey50", "grey35")) +
+  
+  # Individual points and lines
+  geom_point() +
+  geom_line(aes(group = id), size = 0.1) +
+  
+  
+  # Customize the appearance
+  theme_minimal() +
+  theme(
+     panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.line = element_line(color = "black"),  # Set axis lines to black
+    axis.text = element_text(size = 12),  # Increase axis text size
+    axis.title = element_text(size = 14, face = "bold"),  # Increase axis title size and make it bold
+     axis.ticks = element_line(color = "black", size = 0.5),  # Add ticks on the axis
+    legend.position = "bottom"  # Move legend to the bottom
+  ) +
+  labs(title = " ",
+       x = NULL,
+       y = NULL) +
+  guides(fill = FALSE) # Remove the legend for fill
+
+
+# Watt max
+
+# Find the highest watt max value at timepoints 2 or 3 for each ID and label it as "pre"
+watt_pre <- vo2max.data %>%
+  filter(timepoint %in% c(2, 3)) %>%
+  group_by(id) %>%
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>%
+  # You can select or mutate here depending on what you want to keep
+  mutate(Timepoint = "pre") %>%
+  ungroup() %>%
+  # Optionally, rename or select columns as needed, assuming 'watt' is the column name for watt number
+  select(id, vo2 = vo2, watt = watt, Timepoint)
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+watt_post <- vo2max.data %>%
+  filter(timepoint %in% c(7)) %>%
+  group_by(id) %>% 
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>% 
+  mutate(Timepoint = case_when(
+    timepoint == 7 ~ "post")) %>%
+  select(id, vo2, watt = watt, Timepoint)
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+watt_phle <- vo2max.data %>%
+  filter(timepoint %in% c(8)) %>%
+  group_by(id) %>% 
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>% 
+  mutate(Timepoint = case_when(
+    timepoint == 8 ~ "phle")) %>%
+  select(id, vo2, watt = watt, Timepoint)
+
+# Combine the pre, post, and phle datasets into a final dataset for analysis
+watt_max <- bind_rows(watt_pre, watt_post, watt_phle) %>% 
+  # remove participants that did not remove blood or tested at timepoint 8
+  filter(!id %in% c(18, 19, 22, 23, 29, 35, 37, 38, 50, 51, 52, 54, 56, 57, 58))
+
+
+# Specify the order of Timepoints
+watt_max$Timepoint <- factor(watt_max$Timepoint, levels = c("pre", "post", "phle"))
+ 
+
+
+# Create the plot
+w <- ggplot(watt_max, aes(x = Timepoint, y = watt, fill = Timepoint)) +
+  # Bar plot for averages
+  stat_summary(fun = "mean", geom = "col", fill = c("grey", "grey50", "grey35")) +
+  
+  # Individual points and lines
+  geom_point() +
+  geom_line(aes(group = id), size = 0.1) +
+  
+  
+  # Customize the appearance
+  theme_minimal() +
+  theme(
+     panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.line = element_line(color = "black"),  # Set axis lines to black
+    axis.text = element_text(size = 12),  # Increase axis text size
+    axis.title = element_text(size = 14, face = "bold"),  # Increase axis title size and make it bold
+     axis.ticks = element_line(color = "black", size = 0.5),  # Add ticks on the axis
+    legend.position = "bottom"  # Move legend to the bottom
+  ) +
+  labs(title = " ",
+       x = NULL,
+       y = NULL) +
+  scale_y_continuous(breaks = seq(0,350, 100)) +
+  guides(fill = FALSE) # Remove the legend for fill
+
+
+# Performance test
+
+performance_pre <- performance.data %>% 
+  filter(timepoint %in% c(2, 3)) %>%
+  group_by(id) %>%
+  summarize(watt = max(watt, na.rm = TRUE)) %>%
+  mutate(Timepoint = "pre") %>%
+  ungroup()
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+performance_postphle <- performance.data %>%
+  filter(timepoint %in% c(7, 8)) %>%
+  mutate(Timepoint = case_when(
+    timepoint == 7 ~ "post",
+    timepoint == 8 ~ "phle"
+  )) %>%
+  select(id, watt = watt, Timepoint)
+
+# Combine the pre, post, and phle datasets into a final dataset for analysis
+performance_final_dataset <- bind_rows(performance_pre, performance_postphle) %>% 
+  # remove participants that did not remove blood or tested at timepoint 8
+  filter(!id %in% c(18, 19, 22, 23, 29, 35, 37, 38, 50, 51, 52, 54, 56, 57, 58))
+
+
+# Specify the order of Timepoints
+performance_final_dataset$Timepoint <- factor(performance_final_dataset$Timepoint, levels = c("pre", "post", "phle"))
+
+
+# Create the plot
+p <- ggplot(performance_final_dataset, aes(x = Timepoint, y = watt, fill = Timepoint)) +
+  # Bar plot for averages
+  stat_summary(fun = "mean", geom = "col", fill = c("grey", "grey50", "grey35")) +
+  
+  # Individual points and lines
+  geom_point() +
+  geom_line(aes(group = id), size = 0.1) +
+  
+  
+   # Customize the appearance
+  theme_minimal() +
+  theme(
+     panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.line = element_line(color = "black"),  # Set axis lines to black
+    axis.text = element_text(size = 12),  # Increase axis text size
+    axis.title = element_text(size = 14, face = "bold"),  # Increase axis title size and make it bold
+     axis.ticks = element_line(color = "black", size = 0.5),  # Add ticks on the axis
+    legend.position = "bottom"  # Move legend to the bottom
+  ) +
+  labs(title = " ",
+       x = NULL,
+       y = NULL) +
+  scale_y_continuous(breaks = seq(0,300, 50)) +
+  guides(fill = FALSE) # Remove the legend for fill
+
+
+
+
+# Combine the plots side by side using patchwork
+combined_plot <- v + w + p +
+  plot_layout(ncol = 3, widths = c(6, 6, 6))
+
+combined_plot <- combined_plot +
+  plot_annotation(tag_levels = 'A', tag_sep = '') +
+  plot_annotation(subtitle = "Participants that removed blood")
+
+# Show the combined plot
+combined_plot
+
+```
+
+A = Vo2max, B= Wmax, C= PO 15min
+
+
+
+```{r}
+#| message: false
+#| echo: false
+#| warning: false
+
+
+blood_removal <- blood.rm.data %>%
+  select(id, test, bv) %>%
+  pivot_wider(names_from = test,
+              values_from = bv) %>%
+  select(id, post.2.still, post.2.still.drained) %>%
+  mutate(blood_rm = (post.2.still - post.2.still.drained)) %>%
+  select(id, blood_rm) %>%
+  mutate(blood_removal_status = ifelse(blood_rm > 0, "Yes", "No"))
+
+# For incremental step maximal test ##
+
+## PHLE ##
+
+# Find the highest VO2 value at timepoints 2 or 3 for each ID and label it as "pre"
+watt_pre <- vo2max.data %>%
+  filter(timepoint %in% c(2, 3)) %>%
+  group_by(id) %>%
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>%
+  mutate(Timepoint = "pre") %>%
+  ungroup()
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+watt_post <- vo2max.data %>%
+  filter(timepoint %in% c(7)) %>%
+  group_by(id) %>%
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>%
+  mutate(Timepoint = case_when(
+    timepoint == 7 ~ "post"))
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+watt_phle <- vo2max.data %>%
+  filter(timepoint %in% c(8)) %>%
+  group_by(id) %>%
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>%
+  mutate(Timepoint = case_when(
+    timepoint == 8 ~ "phle"))
+
+
+# Combine the pre, post, and phle datasets into a final dataset for analysis
+watt_max <- bind_rows(watt_pre, watt_post, watt_phle)
+
+
+combined_watt <- merge(blood_removal, watt_max, by = "id") %>%
+  filter(!id %in% c(18, 19, 22, 23, 29, 35, 37, 38, 50, 51, 52, 54, 56, 57, 58))
+
+combined_watt$Timepoint <- factor(combined_watt$Timepoint, levels = c("pre", "post", "phle"))
+
+
+#### For vo2max ####
+vo2_mod <- lmer(vo2 ~ Timepoint + blood_rm + (1|id), data = combined_watt)
+
+summary(vo2_mod)
+plot(vo2_mod) # Checking if assumptions are met and no obvious patterns in the data
+est2 <- emmeans(vo2_mod, specs = ~ Timepoint)
+summary(est2)
+pairs(est2)
+
+
+#### For Watt max ####
+watt_mod <- lmer(watt ~ Timepoint + blood_rm + (1|id), data = combined_watt)
+
+summary(watt_mod)
+plot(watt_mod) # Checking if assumptions are met and no obvious patterns in the data
+est3 <- emmeans(watt_mod, specs = ~ Timepoint)
+summary(est3)
+pairs(est3)
+
+
+## For watt results performance 15 min ##
+
+## PHLE ##
+
+# Find the highest watt value at timepoints 2 or 3 for each ID and label it as "pre"
+per_pre <- performance.data %>%
+  filter(timepoint %in% c(2, 3)) %>%
+  filter(period == 1) %>%
+  group_by(id) %>%
+  slice_max(order_by = watt, n = 1, with_ties = FALSE) %>%
+  mutate(timepoint = "pre") %>%
+  ungroup()
+
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+per_postphle <- performance.data %>%
+  filter(timepoint %in% c(7, 8)) %>%
+  mutate(timepoint = case_when(
+    timepoint == 7 ~ "post",
+    timepoint == 8 ~ "phle"
+  ))
+
+# Combine the pre, post, and phle datasets into a final dataset for analysis
+final_per <- bind_rows(per_pre, per_postphle)
+
+
+combined_per <- merge(blood_removal, final_per, by = "id") %>%
+  filter(!id %in% c(18, 19, 22, 23, 29, 35, 37, 38, 50, 51, 52, 54, 56, 57, 58))
+
+combined_per$timepoint <- factor(combined_per$timepoint, levels = c("pre", "post", "phle"))
+
+### Mean watt output during 15 min test ###
+per_mod <- lmer(watt ~ timepoint + blood_rm + (1|id), data = combined_per)
+
+summary(per_mod)
+plot(per_mod) # Checking if assumptions are met and no obvious patterns in the data
+est6 <- emmeans(per_mod, specs = ~ timepoint)
+summary(est6)
+pairs(est6)
+
+
+
+```
+

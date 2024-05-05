@@ -1,0 +1,533 @@
+---
+title: "table_3"
+format: pdf
+editor_options: 
+  chunk_output_type: console
+---
+
+
+
+```{r}
+#| message: false
+#| echo: false
+library(tidyverse)
+library(repeatData)
+library(gt)
+library(lme4)
+library(emmeans)
+library(pbkrtest)
+library(gtsummary)
+library(patchwork)
+library(reporter)
+library(lmerTest)
+library(jtools)
+
+```
+
+
+
+```{r}
+#| message: false
+#| echo: false
+#| warning: false
+
+
+#  Vo2max and Watt max
+
+# Find the highest vo2 and watt max value at timepoints 2 or 3 for each ID and label it as "pre"
+watt_pre <- vo2max.data %>%
+  filter(timepoint %in% c(2, 3)) %>%
+  filter(period == 1) %>% 
+  group_by(id) %>%
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>%
+  # You can select or mutate here depending on what you want to keep
+  mutate(Timepoint = "pre") %>%
+  ungroup() %>%
+  # Optionally, rename or select columns as needed, assuming 'watt' is the column name for watt number
+  select(id, vo2, watt, Timepoint, rpe, lac, hr, ve, rer)
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+watt_post <- vo2max.data %>%
+  filter(timepoint %in% c(7)) %>%
+  filter(period == 1) %>% 
+  group_by(id) %>% 
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>% 
+  mutate(Timepoint = case_when(
+    timepoint == 7 ~ "post")) %>%
+  select(id, vo2, watt, Timepoint, rpe, lac, hr, ve, rer)
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+watt_phle <- vo2max.data %>%
+  filter(timepoint %in% c(8)) %>%
+  filter(period == 1) %>% 
+  group_by(id) %>% 
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>% 
+  mutate(Timepoint = case_when(
+    timepoint == 8 ~ "phle")) %>%
+  select(id, vo2, watt, Timepoint, rpe, lac, hr, ve, rer)
+
+
+vo2_watt <- bind_rows(watt_pre, watt_post, watt_phle) %>% 
+  filter(!id %in% c(18, 35, 37, 51, 56))
+
+
+
+# Performance test
+
+performance_pre <- performance.data %>% 
+  filter(timepoint %in% c(2, 3)) %>%
+  filter(period == 1) %>%
+  group_by(id) %>%
+  slice_max(order_by = watt, n = 1, with_ties = FALSE) %>% 
+  mutate(Timepoint = "pre") %>%
+  ungroup() %>% 
+  select(id, wattper = watt, voper = vo2, Timepoint,rpeper = rpe, lacper = lac, hrper = hr, veper = ve, rerper = rer) 
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+performance_postphle <- performance.data %>%
+  filter(timepoint %in% c(7, 8)) %>%
+  filter(period == 1) %>%
+  mutate(Timepoint = case_when(
+    timepoint == 7 ~ "post",
+    timepoint == 8 ~ "phle"
+  )) %>%
+    select(id, wattper = watt, voper = vo2, Timepoint,rpeper = rpe, lacper = lac, hrper = hr, veper = ve, rerper = rer) 
+# Combine the pre, post, and phle datasets into a final dataset for analysis
+performance_final_dataset <- bind_rows(performance_pre, performance_postphle) %>% 
+  # remove participants that did not remove blood or tested at timepoint 8
+  filter(!id %in% c(18, 35, 37, 51, 56))
+
+dat1 <- merge(vo2_watt, performance_final_dataset, by = c("id", "Timepoint")) 
+
+dat2 <- merge(vo2_watt, performance_final_dataset, by = c("id", "Timepoint"))
+
+# Making a blank row for prepost and postphle dataset. To be used to make a gt table nicer for later.
+new_row_prepost <- data.frame(Timepoint = "prepost", variable = "v", m = NA, s = NA)
+
+new_row_postphle <- data.frame(Timepoint = "postphle", variable = "w", m = NA, s = NA)
+
+
+pre_post <- dat2 %>%
+  filter(Timepoint %in% c("pre", "post")) %>%
+  pivot_longer(names_to = "variable",
+               values_to = "value",
+               cols = vo2:rerper) %>% 
+  pivot_wider(names_from = Timepoint,
+              values_from = value) %>% 
+  mutate(change = (post - pre)/pre * 100,
+         Timepoint = "prepost") %>%
+  summarise(.by = c(Timepoint, variable),
+            m = mean(change, na.rm = TRUE),
+            s = sd(change, na.rm = TRUE)) %>% 
+  bind_rows(new_row_prepost)
+
+
+  
+post_phle <- dat2 %>%
+  filter(Timepoint %in% c("post", "phle")) %>%
+  pivot_longer(names_to = "variable",
+               values_to = "value",
+               cols = vo2:rerper) %>% 
+  pivot_wider(names_from = Timepoint,
+              values_from = value) %>% 
+  mutate(change = (phle - post)/post * 100,
+         Timepoint = "postphle") %>% 
+  summarise(.by = c(Timepoint, variable),
+            m = mean(change, na.rm = TRUE),
+            s = sd(change, na.rm = TRUE)) %>% 
+  bind_rows(new_row_postphle)
+
+
+change_table <- bind_rows(pre_post, post_phle)
+
+
+dat1 %>% 
+  group_by(Timepoint) %>%
+  pivot_longer(names_to = "variable",
+               values_to = "value",
+               cols = vo2:rerper) %>% 
+  group_by(Timepoint, variable) %>% 
+  summarise(m = mean(value, na.rm = TRUE),
+            s = sd(value, na.rm = TRUE)) %>% 
+  bind_rows(change_table) %>%
+  pivot_wider(names_from = Timepoint,
+              values_from = c(m, s)) %>%
+  mutate(variable = factor(variable, levels = c("hr", "hrper", "lac", "lacper", "rer", "rerper", "rpe", "rpeper", "ve", "veper", "vo2", "voper", "watt", "wattper", "v", "w"),
+                           labels = c("hr", "hrper", "lac", "lacper", "rer", "rerper", "rpe", "rpeper", "ve", "veper", "vomax", "voper", "wmax", "wattper", "v", "w"))) %>%
+  select(variable, m_pre, s_pre, m_post, s_post, m_phle, s_phle, m_prepost, s_prepost, m_postphle, s_postphle) %>% 
+  arrange(factor(variable, levels = c("v", "vomax", "wmax", "rpe", "lac", "hr", "ve", "rer","w", "wattper", "voper", "rpeper", "lacper", "hrper", "veper", "rerper"))) %>% 
+  gt %>%
+  fmt_number(columns = c(m_pre:s_phle),
+             rows = variable %in% c("vomax", "wmax", "wattper", "voper"),
+             decimals = 0,
+             use_seps = FALSE)%>%
+  fmt_number(columns = c(m_pre:s_phle),
+             rows = variable %in% c("rpe", "lac", "hr", "ve", "rpeper", "lacper", "hrper", "veper"),
+             decimals = 1) %>%
+  fmt_number(columns = c(m_pre:s_phle),
+             rows = variable %in% c("rer", "rerper"),
+             decimals = 2) %>%
+  fmt_number(columns = c(m_prepost:s_postphle),
+             decimals = 2) %>% 
+  cols_merge(columns = c("m_pre", "s_pre"), 
+             pattern = "<<{1}>> <<\\verb|±| {2}>>") %>% 
+  cols_merge(columns = c("m_post", "s_post"), 
+             pattern = "<<{1}>> <<\\verb|±| {2}>>") %>% 
+  cols_merge(columns = c("m_phle", "s_phle"), 
+             pattern = "<<{1}>> <<\\verb|±| {2}>>") %>%
+  cols_merge(columns = c("m_prepost", "s_prepost"), 
+             pattern = "<<{1}>> <<\\verb|±| {2}>>") %>%
+  cols_merge(columns = c("m_postphle", "s_postphle"), 
+             pattern = "<<{1}>> <<\\verb|±| {2}>>") %>%
+  cols_align(columns = vars(variable),
+             align = "left") %>% 
+  cols_align(columns = vars(m_pre),
+             align = "center") %>%
+  cols_align(columns = vars(m_post),
+             align = "center") %>%
+  cols_align(columns = vars(m_phle),
+             align = "center") %>%
+  cols_align(columns = vars(m_prepost),
+             align = "center") %>%
+  cols_align(columns = vars(m_postphle),
+             align = "center") %>%
+  cols_label(m_pre = "Pre",
+             m_post = "Post",
+             m_phle = "Phle",
+             variable = " ",
+             m_prepost = "% Pre-post",
+             m_postphle = "% Post-phle") %>%
+  text_case_match("v" ~ " ",
+                  "vomax" ~ "VO\\textsubscript{2max}",
+                  "wmax" ~ "W\\textsubscript{max}",
+                  "rpe" ~ "RPE\\textsubscript{max}",
+                  "lac" ~ "\\verb|[La|\\textsuperscript{-}]\\textsubscript{max}",
+                  "hr" ~ "HR\\textsubscript{max}",
+                  "ve" ~ "VE (L/min)\\textsubscript{max}",
+                  "rer" ~ "RER",
+                  "w" ~ " ",
+                  "wattper" ~ "PO\\textsubscript{15min}",
+                  "voper" ~ "Mean VO\\textsubscript{2}",
+                  "rpeper" ~ "RPE\\textsubscript{15min}",
+                  "lacper" ~ "\\verb|[La|\\textsuperscript{-}]\\textsubscript{15min}",
+                  "hrper" ~ "HR\\textsubscript{15min}",
+                  "veper" ~ "VE (L/min)\\textsubscript{15min}",
+                  "rerper" ~ "RER\\textsubscript{15min}")
+  
+  
+
+
+
+
+
+
+```
+
+# Statistical analyses of relevant variables recorded during 15min test
+
+```{r}
+#| message: false
+#| echo: false
+#| warning: false
+
+
+## All these tests are for all participants, not divided into phle vs. nonphle
+## For 15-min test
+
+# Make a tibble of relevant datapoints for blood removal and timepoints
+br <- blood.rm.data %>%
+  select(id, test, bv) %>%
+  pivot_wider(names_from = test,
+              values_from = bv) %>%
+  select(id, pre,  post.2.still, post.2.still.drained) %>%
+  rename("pre" = pre,
+         "post" = post.2.still,
+         "phle" = post.2.still.drained,) %>%
+  pivot_longer(names_to = "variable",
+               values_to = "value",
+               cols = pre:phle) %>%
+  rename("timepoint" = variable,
+         "blood" = value)
+
+blood_removal <- blood.rm.data %>%
+  select(id, test, bv) %>%
+  pivot_wider(names_from = test,
+              values_from = bv) %>%
+  select(id, post.2.still, post.2.still.drained) %>%
+  mutate(blood_rm = (post.2.still - post.2.still.drained)) %>%
+  select(id, blood_rm) %>%
+  mutate(group = ifelse(blood_rm > 0, "1", "2"))
+
+# Finding the mean + sd of blood removed
+amount_br <- br %>%
+  pivot_wider(names_from = timepoint,
+              values_from = blood) %>%
+  mutate(change = phle - post) %>%
+  summarise(m = mean(change, na.rm = TRUE),
+          s = sd(change, na.rm = TRUE))
+
+## For watt results performance 15 min
+
+
+# Find the highest watt value at timepoints 2 or 3 for each ID and label it as "pre"
+per_pre <- performance.data %>%
+  filter(timepoint %in% c(2, 3)) %>%
+  filter(period == 1) %>%
+  group_by(id) %>%
+  slice_max(order_by = watt, n = 1, with_ties = FALSE) %>%
+  mutate(timepoint = "pre") %>%
+  ungroup()
+
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+per_postphle <- performance.data %>%
+  filter(timepoint %in% c(7, 8)) %>%
+  mutate(timepoint = case_when(
+    timepoint == 7 ~ "post",
+    timepoint == 8 ~ "phle"
+  ))
+
+# Combine the pre, post, and phle datasets into a final dataset for analysis
+final_per <- bind_rows(per_pre, per_postphle)
+
+
+combined_per <- merge(blood_removal, final_per, by = "id") %>%
+  filter(!id %in% c(18, 51))
+
+combined_per$timepoint <- factor(combined_per$timepoint, levels = c("pre", "post", "phle"))
+
+### Mean watt output during 15 min test ###
+per_mod <- lmer(watt ~ timepoint + blood_rm + (1|id), data = combined_per)
+
+summary(per_mod)
+plot(per_mod) # Checking if assumptions are met and no obvious patterns in the data
+est <- emmeans(per_mod, specs = ~ timepoint)
+summary(est)
+pairs(est)
+
+
+### Mean VO2 during 15  min test ###
+per_mod2 <- lmer(vo2 ~ timepoint + blood_rm + (1|id), data = combined_per)
+
+summary(per_mod2)
+plot(per_mod2) # Checking if assumptions are met and no obvious patterns in the data
+per_est <- emmeans(per_mod2, specs = ~ timepoint)
+summary(per_est)
+pairs(per_est)
+
+
+#### For la- ###
+per_mod3 <- lmer(lac ~ timepoint + blood_rm + (1|id), data = combined_per)
+
+summary(per_mod3)
+plot(per_mod3) # Checking if assumptions are met and no obvious patterns in the data
+per_est3 <- emmeans(per_mod3, specs = ~ timepoint)
+summary(per_est3)
+pairs(per_est3)
+
+
+#### For RPE ###
+per_mod4 <- lmer(rpe ~ timepoint + blood_rm + (1|id), data = combined_per)
+
+summary(per_mod4)
+plot(per_mod4) # Checking if assumptions are met and no obvious patterns in the data
+per_est4 <- emmeans(per_mod4, specs = ~ timepoint)
+summary(per_est4)
+pairs(per_est4)
+
+
+### For HR ####
+per_mod5 <- lmer(hr ~ timepoint + blood_rm + (1|id), data = combined_per)
+
+summary(per_mod5)
+plot(per_mod5) # Checking if assumptions are met and no obvious patterns in the data
+per_est5 <- emmeans(per_mod5, specs = ~ timepoint)
+summary(per_est5)
+pairs(per_est5)
+
+
+### For VE ####
+per_mod6 <- lmer(ve ~ timepoint + blood_rm + (1|id), data = combined_per)
+
+summary(per_mod6)
+plot(per_mod6) # Checking if assumptions are met and no obvious patterns in the data
+per_est6 <- emmeans(per_mod6, specs = ~ timepoint)
+summary(per_est6)
+pairs(per_est6)
+
+
+### For rer ####
+per_mod7 <- lmer(rer ~ timepoint + blood_rm + (1|id), data = combined_per)
+
+summary(per_mod7)
+plot(per_mod7) # Checking if assumptions are met and no obvious patterns in the data
+per_est7 <- emmeans(per_mod7, specs = ~ timepoint)
+summary(per_est7)
+pairs(per_est7)
+
+
+
+
+
+```
+
+
+# Statistical analyses of relevant variables recorded during incremental step test
+
+```{r}
+#| message: false
+#| echo: false
+#| warning: false
+
+
+## All these tests are for all participants, not divided into phle vs. nonphle
+## For Vo2max and Wmax tests
+
+# Make a tibble of relevant datapoints for blood removal and timepoints
+br <- blood.rm.data %>%
+  select(id, test, bv) %>%
+  pivot_wider(names_from = test,
+              values_from = bv) %>%
+  select(id, pre,  post.2.still, post.2.still.drained) %>%
+  rename("pre" = pre,
+         "post" = post.2.still,
+         "phle" = post.2.still.drained,) %>%
+  pivot_longer(names_to = "variable",
+               values_to = "value",
+               cols = pre:phle) %>%
+  rename("timepoint" = variable,
+         "blood" = value)
+
+blood_removal <- blood.rm.data %>%
+  select(id, test, bv) %>%
+  pivot_wider(names_from = test,
+              values_from = bv) %>%
+  select(id, post.2.still, post.2.still.drained) %>%
+  mutate(blood_rm = (post.2.still - post.2.still.drained)) %>%
+  select(id, blood_rm) %>%
+  mutate(group = ifelse(blood_rm > 0, "1", "2"))
+
+# Finding the mean + sd of blood removed
+amount_br <- br %>%
+  pivot_wider(names_from = timepoint,
+              values_from = blood) %>%
+  mutate(change = phle - post) %>%
+  summarise(m = mean(change, na.rm = TRUE),
+          s = sd(change, na.rm = TRUE))
+
+
+# For incremental step maximal test
+
+# Find the highest VO2 value at timepoints 2 or 3 for each ID and label it as "pre"
+watt_pre <- vo2max.data %>%
+  filter(timepoint %in% c(2, 3)) %>%
+  group_by(id) %>%
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>%
+  mutate(Timepoint = "pre") %>%
+  ungroup()
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+watt_post <- vo2max.data %>%
+  filter(timepoint %in% c(7)) %>%
+  group_by(id) %>%
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>%
+  mutate(Timepoint = case_when(
+    timepoint == 7 ~ "post"))
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+watt_phle <- vo2max.data %>%
+  filter(timepoint %in% c(8)) %>%
+  group_by(id) %>%
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>%
+  mutate(Timepoint = case_when(
+    timepoint == 8 ~ "phle"))
+
+
+# Combine the pre, post, and phle datasets into a final dataset for analysis
+watt_max <- bind_rows(watt_pre, watt_post, watt_phle)
+
+
+combined_watt <- merge(blood_removal, watt_max, by = "id")
+
+combined_watt$Timepoint <- factor(combined_watt$Timepoint, levels = c("pre", "post", "phle"))
+
+
+#### For vo2max ####
+vo2_mod <- lmer(vo2 ~ Timepoint + blood_rm + (1|id), data = combined_watt)
+
+summary(vo2_mod)
+plot(vo2_mod) # Checking if assumptions are met and no obvious patterns in the data
+est2 <- emmeans(vo2_mod, specs = ~ Timepoint)
+summary(est2)
+pairs(est2)
+
+
+
+#### For Watt max ####
+watt_mod <- lmer(watt ~ Timepoint + blood_rm + (1|id), data = combined_watt)
+
+summary(watt_mod)
+plot(watt_mod) # Checking if assumptions are met and no obvious patterns in the data
+est3 <- emmeans(watt_mod, specs = ~ Timepoint)
+summary(est3)
+pairs(est3)
+
+
+#### for RPE ####
+rpe_mod <- lmer(rpe ~ Timepoint + blood_rm + (1|id), data = combined_watt)
+
+summary(rpe_mod)
+plot(rpe_mod) # Checking if assumptions are met and no obvious patterns in the data
+est4 <- emmeans(rpe_mod, specs = ~ Timepoint)
+summary(est4)
+pairs(est4)
+
+
+#### for HR ####
+hr_mod <- lmer(hr ~ Timepoint + blood_rm + (1|id), data = combined_watt)
+
+summary(hr_mod)
+plot(hr_mod)# Checking if assumptions are met and no obvious patterns in the data
+est5 <- emmeans(hr_mod, specs = ~ Timepoint)
+summary(est5)
+pairs(est5)
+
+#### for la- ####
+lac_mod <- lmer(lac ~ Timepoint + blood_rm + (1|id), data = combined_watt)
+
+summary(lac_mod)
+plot(lac_mod) # Checking if assumptions are met and no obvious patterns in the data
+est6 <- emmeans(lac_mod, specs = ~ Timepoint)
+summary(est6)
+pairs(est6)
+
+
+#### for rer ####
+rer_mod <- lmer(rer ~ Timepoint + blood_rm + (1|id), data = combined_watt)
+
+summary(rer_mod)
+plot(rer_mod) # Checking if assumptions are met and no obvious patterns in the data
+est7 <- emmeans(rer_mod, specs = ~ Timepoint)
+summary(est7)
+pairs(est7)
+
+
+#### for VE ####
+ve_mod <- lmer(ve ~ Timepoint + blood_rm + (1|id), data = combined_watt)
+
+summary(ve_mod)
+plot(ve_mod) # Checking if assumptions are met and no obvious patterns in the data
+est8 <- emmeans(ve_mod, specs = ~ Timepoint)
+summary(est8)
+pairs(est8)
+```
+
+
+
+

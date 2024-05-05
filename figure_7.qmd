@@ -1,0 +1,196 @@
+---
+title: "figure_7"
+format: pdf
+editor_options: 
+  chunk_output_type: console
+---
+```{r}
+#| message: false
+#| echo: false
+library(tidyverse)
+library(repeatData)
+library(gt)
+library(lme4)
+library(emmeans)
+library(pbkrtest)
+library(gtsummary)
+library(patchwork)
+library(reporter)
+library(jtools)
+
+
+
+
+```
+
+
+```{r}
+#| message: false
+#| echo: false
+#| warning: false
+
+
+
+blood_removal <- blood.rm.data %>%
+  select(id, test, bv) %>%
+  pivot_wider(names_from = test,
+              values_from = bv) %>%
+  select(id, post.2.still, post.2.still.drained) %>%
+  mutate(blood_rm = (post.2.still - post.2.still.drained)) %>%
+  select(id, blood_rm) %>%
+  mutate(group = ifelse(blood_rm > 0, "1", "2"))
+
+
+
+# For incremental step maximal test
+
+# Find the highest VO2 value at timepoints 2 or 3 for each ID and label it as "pre"
+watt_pre <- cycling.data %>%
+  filter(timepoint %in% c(2, 3)) %>%
+  group_by(id) %>%
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>%
+  mutate(timepoint = "pre") %>%
+  ungroup()
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+watt_post <- cycling.data %>%
+  filter(timepoint %in% c(7)) %>%
+  group_by(id) %>%
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>%
+  mutate(timepoint = case_when(
+    timepoint == 7 ~ "post"))
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+watt_phle <- cycling.data %>%
+  filter(timepoint %in% c(8)) %>%
+  group_by(id) %>%
+  # Use slice_max to select the row with the maximum VO2 value
+  slice_max(order_by = vo2, n = 1, with_ties = FALSE) %>%
+  mutate(timepoint = case_when(
+    timepoint == 8 ~ "phle"))
+
+
+# Combine the pre, post, and phle datasets into a final dataset for analysis
+watt_max <- bind_rows(watt_pre, watt_post, watt_phle)
+
+combined_watt <- merge(blood_removal, watt_max, by = "id")
+
+
+dat <- combined_watt %>%
+  select(id, timepoint, group, test, vo2)
+
+
+
+plot1 <- dat %>%
+  group_by(timepoint, group) %>%
+  mutate(m = mean(vo2)) %>%
+  filter(timepoint %in% c("post", "phle")) %>%
+  mutate(timepoint = factor(timepoint,
+                            levels = c("post", "phle"))) %>%
+  ggplot(aes(timepoint, m, group = group, linetype = as.factor(group))) +
+  geom_line(size = 1) +
+  scale_y_continuous(limits = c(2800, 3400), breaks = seq(2800, 3400, by = 100)) +
+  scale_linetype_manual(values = c("solid", "dashed")) +  # Customize line types
+  theme_minimal() +
+  theme(axis.line = element_line(size = 1, color = "black"),
+        axis.text = element_text(size = 12, color = "black"),
+        axis.title = element_text(size = 14, color = "black"),
+        axis.ticks = element_line(color = "black", size = 0.5),  # Add ticks on the axis
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+
+dat1 <- dat %>%
+  mutate(timepoint = factor(timepoint,
+                            levels = c("pre", "post", "phle"))) %>%
+  pivot_wider(names_from = timepoint,
+              values_from = vo2) %>%
+  mutate(change = phle - post) %>%
+  filter(!is.na(change))
+
+# ANCOVA
+summary(lm(change ~ group + post, data = dat1))
+
+plot1
+
+```
+Vo2max
+
+```{r}
+#| message: false
+#| echo: false
+#| warning: false
+
+## For watt results performance 15 min
+
+
+# Find the highest watt value at timepoints 2 or 3 for each ID and label it as "pre"
+per_pre <- performance.data %>%
+  filter(timepoint %in% c(2, 3)) %>%
+  filter(period == 1) %>%
+  group_by(id) %>%
+  slice_max(order_by = watt, n = 1, with_ties = FALSE) %>%
+  mutate(timepoint = "pre") %>%
+  ungroup()
+
+
+# Assign "post" to timepoint 7 and "phle" to timepoint 8, then select relevant columns
+per_postphle <- performance.data %>%
+  filter(timepoint %in% c(7, 8)) %>%
+  mutate(timepoint = case_when(
+    timepoint == 7 ~ "post",
+    timepoint == 8 ~ "phle"
+  ))
+
+# Combine the pre, post, and phle datasets into a final dataset for analysis
+final_per <- bind_rows(per_pre, per_postphle)
+
+
+combined_per <- merge(blood_removal, final_per, by = "id") %>%
+  filter(!id %in% c(18, 51))
+
+
+
+dat2 <- combined_per %>%
+  select(id, timepoint, group, test, watt)
+
+
+plot2 <- dat2 %>%
+  group_by(timepoint, group) %>%
+  mutate(m = mean(watt)) %>%
+  filter(timepoint %in% c("post", "phle")) %>%
+  mutate(timepoint = factor(timepoint,
+                            levels = c("post", "phle"))) %>%
+  ggplot(aes(timepoint, m, group = group, linetype = as.factor(group))) +
+  geom_point() +
+  geom_line(size = 1) +
+  scale_y_continuous(limits = c(140, 170), breaks = seq(140, 180, by = 5)) +
+  scale_linetype_manual(values = c("solid", "dashed")) +  # Customize line types
+  theme_minimal() +
+  theme(axis.line = element_line(size = 1, color = "black"),
+        axis.text = element_text(size = 12, color = "black"),
+        axis.title = element_text(size = 14, color = "black"),
+        axis.ticks = element_line(color = "black", size = 0.5),  # Add ticks on the axis
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+
+dat3 <- dat2 %>%
+  mutate(timepoint = factor(timepoint,
+                            levels = c("post", "phle"))) %>%
+  pivot_wider(names_from = timepoint,
+              values_from = watt) %>%
+  mutate(change = phle - post) %>%
+  filter(!is.na(change))
+
+#ANCOVA
+summary(lm(change ~ group + post, data = dat3))
+
+
+plot2
+
+```
+PO 15min
+
