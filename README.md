@@ -1,6 +1,6 @@
-#This repository contains codes and analyses from my master thesis#
+## This repository contains codes and analyses from my master thesis ##
 
-__In the folder R contains codes and analyses for all tables and associated variables__
+**In the folder R contains codes and analyses for all tables and associated variables**
 
 Table 1: Contains baseline descriptive table
 
