@@ -4,7 +4,7 @@
 
 Table 1: Contains baseline descriptive table
 
-Table 2: Contain haematological variables from pre- and post-training and percentage change as well as t-test analyses for haematological from pre- to post-training
+Table 2: Contain haematological variables from pre- and post-training and percentage change as well as t-test analyses for haematological variables from pre- to post-training
 
 Table 3: Contain measurements obtrained during maximal endurance exercise tests at pre-, post-training and post-phlebotomy. As well as percentage change from pre-post and post-phle. This script also contains mixed-effects linear regression models (lmer) + post-hoc tests
 
