@@ -1,6 +1,6 @@
 ## This repository contains codes and analyses from my master thesis ##
 
-**The folder R contains codes and analyses for all tables and associated variables**
+**R/ contain codes and analyses for all tables and associated variables**
 
 Table 1: Contains baseline descriptive table
 
@@ -19,3 +19,5 @@ Figure 7: Contain group difference analyses (ANCOVA) and figure of group differe
 Figure 8: Contain linear regression model of change scores on endurance tests with amount of Hbmass (g) removed
 
 Figure 9: Contain linear regression model of change scores on endurance tests with amount of blood (mL) removed
+
+**figure and table folders contain all figures and tables in .png format**
