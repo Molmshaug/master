@@ -1,0 +1,402 @@
+---
+title: "Info"
+format: pdf
+editor_options: 
+  chunk_output_type: console
+---
+```{r}
+#| message: false
+#| echo: false
+library(tidyverse)
+library(repeatData)
+library(gt)
+library(lme4)
+library(emmeans)
+library(pbkrtest)
+library(gtsummary)
+library(patchwork)
+library(reporter)
+library(jtools)
+
+
+
+
+```
+
+
+## blood.rm.data
+Description
+This dataset includes summarized data from the CO-rebreathing tests and phlebotomy
+
+A data frame with 459 rows and 11 columns:
+
+id: participant number; 1-58
+
+timepoint: order of test days; "2" is pretest, "7" is posttest 1 and "3" is posttest 2
+
+weight: kg
+
+test: different test timepoints; "pre" is pretest, "post" is posttest, "post.1.still" is before cycling-test at posttest 1, "post.1.vo2max" is after vo2max-test at posttest 1, "post.1.15tt" is after performance test at posttest 1, "post.2.still" is before cycling-test at posttest 2, "post.2.drained" is after phlebotomy at posttest 2, "post.2.vo2max" is after vo2max-test at posttest 2 and "post.2.15tt" is after performance test at posttest 2
+
+hbmass: hemoglobin mass; grams
+
+rbcv: red blood cell volume; mL
+
+pv: plasma volume; mL
+
+bv: blood volume; mL
+
+hct: hematocrit; percent
+
+hb.c: hemoglobin concentration; g/L
+
+hbmass.kg: hemoglobin mass; g/kg
+
+
+## cycling.data
+Combined dataset with submax, vo2max and performance datasets
+Description
+This dataset includes vo2 utilization rates
+
+A data frame with 1179 rows and 25 columns:
+
+id: participant number; 1-58
+
+timepoint: order of test days; 1-8
+
+period: order of training periods; 1 & 2
+
+sex: gender; "m" is male and "f" is female
+
+test: different cycling test; "sub_25" is 25% of Wmax, "sub_40" is 40% of Wmax, "new_40" is newly calculated 40% of wmax, "max" is vo2max and "per" is performance
+
+height: height; cm
+
+weight: weight; kg
+
+age: age; years
+
+temperature: temperature; degrees Celsius
+
+humidity: air humidity; percent
+
+t.o.d: time of day; number of hours
+
+lac: lactate; mmol/L
+
+rpe: rate of perceived exhaustion; BORG scale 6-20
+
+watt: watt
+
+rpm: cycling cadence; rounds per minute
+
+vo2: volume of oxygen; mL/min
+
+vo2.kg: volume of oxygen; mL/kg/min
+
+rel.vo2: utilization ratio of vo2max; percent
+
+ve: ventilation; L/min
+
+vco2: volume of carbon dioxide; mL/min
+
+bf: breathing frequency; breaths per minute
+
+hr: heart rate; beats per minutes
+
+rer: respiratory exchange ratio; vo2/vco2
+
+GE: gross efficiency; percent
+
+threshold: lactate threshold estimation; regression slope in watts between the last two lactate values during vo2max-test
+
+## hb.data
+Description
+This dataset includes summarized data from the CO-rebreathing test to determine blood volume
+
+A data frame with 105 rows and 11 columns:
+
+id: participant number; 1-58
+
+timepoint: order of testdays; 1-8
+
+period: order of training periods; 1 & 2
+
+weight: kg
+
+hbmass: hemoglobin mass; grams
+
+rbcv: red blood cell volume; mL
+
+pv: plasma volume; mL
+
+bv: blood volume; mL
+
+hct: hematocrit; percent
+
+hb.c: hemoglobin concentration; g/L
+
+hbmass.kg: hemoglobin mass; g/kg
+
+## humac.data
+Description
+This dataset includes summarized data from the isokinetic and isometric knee-extension test
+
+A data frame with 153 rows and 20 columns:
+
+id: participant number; 1-58
+
+timepoint: order of testdays; 1-8
+
+period: order of training periods; 1 & 2
+
+leg: leg; "right" or "left"
+
+60.peak.torque: peak torque at 60 degrees per second; Nm
+
+60.tt.peak.torque: time to peak torque at 60 degrees per second; seconds
+
+60.avg.power: average power during 60 degrees per second; watt
+
+60.joint.angle.peak.torque: joint angle at peak torque during 60 degrees per second; degrees
+
+180.peak.torque: peak torque at 180 degrees per second; Nm
+
+180.tt.peak.torque: time to peak torque at 180 degrees per second; seconds
+
+180.avg.power: average power during 180 degrees per second; watt
+
+180.joint.angle.peak.torque: joint angle at peak torque during 180 degrees per second; degrees
+
+240.peak.torque: peak torque at 240 degrees per second; Nm
+
+240.tt.peak.torque: time to peak torque at 240 degrees per second; seconds
+
+240.avg.power: average power during 240 degrees per second; watt
+
+240.joint.angle.peak.torque: joint angle at peak torque during 240 degrees per second; degrees
+
+isom.peak.torque: isometric peak torque; Nm
+
+isom.tt.peak.torque:  time to peak torque during isometric contraction; seconds
+
+isom.tt.half.peak.torque: time to half peak torque during isometric contraction; seconds
+
+isom.peak.torque.slope: the slope between torque and time during isometric contraction, Nm
+
+## performance.data
+Description
+This dataset includes summarized data from the 15min cycling performance test
+
+A data frame with 206 rows and 23 columns:
+
+id: participant number; 1-58
+
+timepoint: order of test days; 1-8
+
+period: order of training periods; 1 & 2
+
+sex: gender; "m" is male and "f" is female
+
+test: different cycling test; "sub_25" is 25% of Wmax, "sub_40" is 40% of Wmax, "new_40" is newly calculated 40% of wmax
+
+height: height; cm
+
+weight: weight; kg
+
+age: age; years
+
+temperature: temperature; degrees Celsius
+
+humidity: air humidity; percent
+
+t.o.d: time of day; number of hours
+
+lac: lactate; mmol/L
+
+rpe: rate of perceived exhaustion; BORG scale 6-20
+
+watt: watt
+
+rpm: cycling cadence; rounds per minute
+
+vo2: volume of oxygen; mL/min
+
+vo2.kg: volume of oxygen; mL/kg/min
+
+rel.vo2: utilization ratio of vo2max; percent
+
+ve: ventilation; L/min
+
+vco2: volume of carbon dioxide; mL/min
+
+bf: breathing frequency; breaths per minute
+
+hr: heart rate; beats per minutes
+
+rer: respiratory exchange ratio; vo2/vco2
+
+## Session.data
+Description
+This dataset includes summarized data from the cycling training sessions
+
+A data frame with 1325 rows and 9 columns:
+
+id: participant number; 1-58
+
+period: order of training periods; 1 & 2
+
+session.n: number of session; 1-25
+
+type: type of interval training; 4x8min, 6x6min and 4x5min
+
+ftp: functional threshold power; average 15min performance watt or average 4x5min session watt
+
+hr: average heart rate; beats per minutes
+
+hr.max: maximal heart rate; beats per minutes
+
+watt: watt
+
+rpe: rate of perceived exhaustion; BORG scale 6-20
+
+## submax.data
+Description
+This dataset includes data from all submaximal bouts, i.e. 25% of Wmax, 40% of Wmax and newly calculated 40% of Wmax
+
+A data frame with 689 rows and 23 columns:
+
+id: participant number; 1-58
+
+timepoint: order of test days; 1-8
+
+period: order of training periods; 1 & 2
+
+sex: gender; "m" is male and "f" is female
+
+test: different cycling test; "sub_25" is 25% of Wmax, "sub_40" is 40% of Wmax, "new_40" is newly calculated 40% of wmax
+height: height; cm
+
+weight: weight; kg
+
+age: age; years
+
+temperature: temperature; degrees Celsius
+
+humidity: air humidity; percent
+
+t.o.d: time of day; number of hours
+
+lac: lactate; mmol/L
+
+rpe: rate of perceived exhaustion; BORG scale 6-20
+
+watt: watt
+
+rpm: cycling cadence; rounds per minute
+
+vo2: volume of oxygen; mL/min
+
+vo2.kg: volume of oxygen; mL/kg/min
+
+ve: ventilation; L/min
+
+vco2: volume of carbon dioxide; mL/min
+
+bf: breathing frequency; breaths per minute
+
+hr: heart rate; beats per minutes
+
+rer: respiratory exchange ratio; vo2/vco2
+
+GE: gross efficiency; percent
+
+## vo2.session.data
+Description
+This dataset includes summarized data from the two vo2 training sessions per period
+
+A data frame with 53 rows and 15 columns:
+
+id: participant number; 1-58
+
+period: order of training periods; 1 & 2
+
+lac: lactate; mmol/L
+
+rpe: rate of perceived exhaustion; BORG scale 6-20
+
+watt: watt
+
+rpm: cycling cadence; rounds per minute
+
+vo2: volume of oxygen; mL/min
+
+ve: ventilation; L/min
+
+vco2: volume of carbon dioxide; mL/min
+
+bf: breathing frequency; breaths per minute
+
+hr: heart rate; beats per minutes
+
+rer: respiratory exchange ratio; vo2/vco2
+
+vo2.percent: utilization ratio of vo2max; percent
+
+hr.percent: utilization ratio of heart rate max; percent
+
+session.90.vo2:time above 90% of vo2max; seconds
+
+session.90.hr: time above 90% of heart rate max; seconds
+
+## vo2max.data
+Description
+This dataset includes summarized data from the vo2max test
+
+A data frame with 284 rows and 22 columns:
+
+id: participant number; 1-58
+
+timepoint: order of test days; 1-8
+
+period: order of training periods; 1 & 2
+
+sex: gender; "m" is male and "f" is female
+
+test: different cycling test; "max" is vo2max
+
+height: height; cm
+
+weight: weight; kg
+
+age: age; years
+
+temperature: temperature; degrees Celsius
+
+humidity: air humidity; percent
+
+t.o.d: time of day; number of hours
+
+lac: lactate; mmol/L
+
+rpe: rate of perceived exhaustion; BORG scale 6-20
+
+watt: watt
+
+threshold: lactate threshold estimation; regression slope in watts between the last two lactate values during vo2max-test
+
+vo2: volume of oxygen; mL/min
+
+vo2.kg: volume of oxygen; mL/kg/min
+
+ve: ventilation; L/min
+
+vco2: volume of carbon dioxide; mL/min
+
+bf: breathing frequency; breaths per minute
+
+hr: heart rate; beats per minutes
+
+rer: respiratory exchange ratio; vo2/vco2
+
+
