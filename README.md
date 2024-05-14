@@ -23,3 +23,5 @@ Figure 9: Contain linear regression model of change scores on endurance tests wi
 Session_data: Contain analyses for session data 
 
 **figure and table folders contain all figures and tables in .png format**
+
+**Info contain information about the different datasets from the repeatData package**
