@@ -1,0 +1,108 @@
+---
+title: "session_data"
+format: pdf
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| message: false
+#| echo: false
+library(tidyverse)
+library(repeatData)
+library(gt)
+library(lme4)
+library(emmeans)
+library(pbkrtest)
+library(gtsummary)
+library(patchwork)
+library(reporter)
+library(jtools)
+
+
+
+
+```
+
+
+```{r}
+#| message: false
+#| echo: false
+#| warning: false
+
+
+#finding number of sessions each participant completed
+# calculating mean (sd)
+session <- session.data %>%
+  select(id, type:rpe) %>%
+  group_by(id) %>%
+  select(-ftp) %>%
+  filter(!id %in% c(18, 35, 37, 51, 56)) %>% # removing participants that withdrew from the study
+  filter(!is.na(hr) | !is.na(hr.max) | !is.na(watt) | !is.na(rpe)) %>%
+  summarise(num_sessions = n(), .groups = "drop") %>%
+  mutate(m = mean(num_sessions),
+         s = sd(num_sessions)) 
+
+
+#finding total number of sessions for all participants and calculating percentage of planned sessions completed
+# 1177 planned sessions for all participants
+# 24x48 + 25 (one participant completed 25/25 sessions.)
+
+
+
+session_data_filtered <- session.data %>%
+  filter(!is.na(hr) | !is.na(hr.max) | !is.na(watt) | !is.na(rpe)) %>%
+  group_by(id) %>%
+  filter(!id %in% c(18, 35, 37, 51, 56)) %>% # removing participants that withdrew from the study,
+  summarise(num_completed = sum(!is.na(hr) | !is.na(hr.max) | !is.na(watt) | !is.na(rpe)), .groups = "drop") %>%
+  mutate(sum(num_completed))
+
+session_data_filtered %>%
+  mutate(perc_complete = (1164/1177)*100) 
+
+
+#finding number of sessions that were 4x5, 6x6 and 4x8
+
+session_type <- session.data %>%
+  select(id, type:rpe) %>%
+  group_by(id) %>%
+  select(-ftp) %>%
+  filter(!id %in% c(18, 35, 37, 51, 56)) %>%
+  filter(!is.na(hr) | !is.na(hr.max) | !is.na(watt) | !is.na(rpe)) %>%
+  group_by(id, type) %>%
+  summarise(session_count = n(), .groups = "drop") %>%
+  group_by(type) %>%
+  summarise(n_sessions =  sum(session_count)) %>%
+  mutate(all_sessions = sum(n_sessions)) %>%
+  mutate(perc_sessions = (n_sessions/all_sessions)*100)
+
+
+# Finding average RPE from sessions
+
+
+session_rpe <- session.data %>%
+  select(id, type:rpe) %>%
+  group_by(id) %>%
+  select(-ftp) %>%
+  filter(!id %in% c(18, 35, 37, 51, 56)) %>%
+  filter(!is.na(hr) | !is.na(hr.max) | !is.na(watt) | !is.na(rpe)) %>%
+  group_by(type) %>%
+  summarise(mean_rpe = mean(rpe, na.rm = TRUE),
+            sd_rpe = sd(rpe, na.rm = TRUE))
+
+  session_merge_data <- left_join(session_type, session_rpe, by = "type")
+
+  session_merge_data %>%
+    select(type, mean_rpe, sd_rpe) %>%
+    gt() %>%
+    fmt_number(columns = c(mean_rpe, sd_rpe),
+               decimals = 1,
+               use_seps = FALSE) %>%
+    cols_merge(columns = c("mean_rpe", "sd_rpe"),
+               pattern = "<<{1}>>     <<({2})>>") %>%
+    tab_header(
+      title = "Session data") %>%
+    cols_label(type = "Session",
+               mean_rpe = "RPE")
+
+```
