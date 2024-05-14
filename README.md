@@ -4,4 +4,4 @@
 
 **2:** figure and table folders contain all figures and tables in .png format
 
-**3:** Info contain information about the different datasets from the repeatData package
+**3:** Info.pdf contain information about the different datasets from the repeatData package
